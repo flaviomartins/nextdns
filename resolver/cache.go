@@ -8,6 +8,7 @@ import (
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/nextdns/nextdns/resolver/query"
+	"go.dw1.io/rapidhash"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
@@ -23,12 +24,15 @@ func (k cacheKey) String() string {
 }
 
 func (k cacheKey) Hash() uint64 {
-	d := xxhash.New()
-
-	if k.ctx != "" {
-		// Avoid allocation from []byte(string).
-		_, _ = d.Write(unsafe.Slice(unsafe.StringData(k.ctx), len(k.ctx)))
+	if k.ctx == "" {
+		// DNS53 cache keys have no endpoint context; use the qname directly.
+		seed := uint64(k.qclass)<<16 | uint64(k.qtype)
+		return rapidhash.HashStringNanoWithSeed(k.qname, seed)
 	}
+
+	d := xxhash.New()
+	// Avoid allocation from []byte(string).
+	_, _ = d.Write(unsafe.Slice(unsafe.StringData(k.ctx), len(k.ctx)))
 	var b [4]byte
 	binary.BigEndian.PutUint16(b[0:2], uint16(k.qclass))
 	binary.BigEndian.PutUint16(b[2:4], uint16(k.qtype))
