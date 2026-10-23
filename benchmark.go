@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/nextdns/nextdns/resolver"
@@ -38,7 +39,13 @@ var benchNames = []string{
 // profile URL for DoH.
 var benchCtxs = []string{"", "https://dns.nextdns.io/abcdef"}
 
-// benchHash returns the average ns per key hash for algo.
+// benchStoredCtxs are separate copies of benchCtxs, standing in for the context
+// stored in a cache entry, so the comparison reads real bytes as it does on a
+// cache hit.
+var benchStoredCtxs = []string{"", strings.Clone(benchCtxs[1])}
+
+// benchHash returns the average ns per cache lookup key check for algo: the key
+// hash plus the context comparison done on a hit.
 func benchHash(algo resolver.CacheHash, names []string, d time.Duration) (nsPerOp float64, sink uint64) {
 	const batch = 1000
 	var ops, n int
@@ -50,6 +57,9 @@ func benchHash(algo resolver.CacheHash, names []string, d time.Duration) (nsPerO
 			n++
 			sink ^= resolver.HashKey(algo, benchCtxs[i&1],
 				query.ClassINET, query.TypeA, names[idx])
+			if benchStoredCtxs[i&1] != benchCtxs[i&1] {
+				sink++
+			}
 		}
 		ops += batch
 	}
@@ -79,7 +89,7 @@ func benchmark(args []string) error {
 
 	fmt.Printf("Platform: %s/%s, %d CPU, %d names\n", runtime.GOOS, runtime.GOARCH, runtime.NumCPU(), len(names))
 	for i, a := range algos {
-		fmt.Printf("  %-8s %8.1f ns/op\n", a, best[i])
+		fmt.Printf("  %-8s %8.1f ns/op (hash + context check)\n", a, best[i])
 	}
 	winner := resolver.CacheHashXXHash
 	if best[1] < best[0] {
