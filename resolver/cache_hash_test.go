@@ -1,8 +1,10 @@
 package resolver
 
 import (
+	"fmt"
 	"testing"
 
+	"github.com/dgraph-io/ristretto/v2/z"
 	"github.com/nextdns/nextdns/resolver/query"
 )
 
@@ -44,7 +46,8 @@ func BenchmarkCacheKeyHash(b *testing.B) {
 	}
 }
 
-// Two DoH profile URLs whose CRC-32C cache keys collide for the same question.
+// Two DoH profile URLs whose CRC-32C (low 32 bits) cache keys collide for the
+// same question.
 const (
 	collideCtxA = "https://dns.nextdns.io/308076/device-00004f56"
 	collideCtxB = "https://dns.nextdns.io/1c6e9c/device-0001a35c"
@@ -52,9 +55,10 @@ const (
 
 func TestCacheKeyCollisionDoesNotCrossContexts(t *testing.T) {
 	const qname = "example.com."
-	if HashKey(CacheHashCRC32, collideCtxA, query.ClassINET, query.TypeA, qname) !=
-		HashKey(CacheHashCRC32, collideCtxB, query.ClassINET, query.TypeA, qname) {
-		t.Fatal("test vectors no longer collide with crc32")
+	a := HashKey(CacheHashCRC32, collideCtxA, query.ClassINET, query.TypeA, qname)
+	b := HashKey(CacheHashCRC32, collideCtxB, query.ClassINET, query.TypeA, qname)
+	if uint32(a) != uint32(b) {
+		t.Fatal("test vectors no longer collide on the low 32 bits")
 	}
 	msg := []byte{
 		0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0,
@@ -69,5 +73,29 @@ func TestCacheKeyCollisionDoesNotCrossContexts(t *testing.T) {
 	}
 	if kB.Matches(v) {
 		t.Fatal("entry stored for one context must not match a colliding key from another")
+	}
+}
+
+// ristretto's doorkeeper Bloom filter derives probe positions from the upper
+// bits of the key, so they must carry entropy.
+func TestCRC32KeyBloomFalsePositives(t *testing.T) {
+	const n = 655360 // counters of a 64MB cache
+	ctx := "https://dns.nextdns.io/308076/device-00004f56"
+	key := func(i int) uint64 {
+		return HashKey(CacheHashCRC32, ctx, query.ClassINET, query.TypeA, fmt.Sprintf("host-%d.example.com.", i))
+	}
+	bl := z.NewBloomFilter(n, 0.01)
+	for i := 0; i < n; i++ {
+		bl.Add(key(i))
+	}
+	const probes = 100000
+	fp := 0
+	for i := 0; i < probes; i++ {
+		if bl.Has(key(n + i)) {
+			fp++
+		}
+	}
+	if rate := float64(fp) / probes; rate > 0.02 {
+		t.Fatalf("bloom false-positive rate %.4f, want <= 0.02", rate)
 	}
 }
