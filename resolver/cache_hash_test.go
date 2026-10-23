@@ -43,3 +43,31 @@ func BenchmarkCacheKeyHash(b *testing.B) {
 		})
 	}
 }
+
+// Two DoH profile URLs whose CRC-32C cache keys collide for the same question.
+const (
+	collideCtxA = "https://dns.nextdns.io/308076/device-00004f56"
+	collideCtxB = "https://dns.nextdns.io/1c6e9c/device-0001a35c"
+)
+
+func TestCacheKeyCollisionDoesNotCrossContexts(t *testing.T) {
+	const qname = "example.com."
+	if HashKey(CacheHashCRC32, collideCtxA, query.ClassINET, query.TypeA, qname) !=
+		HashKey(CacheHashCRC32, collideCtxB, query.ClassINET, query.TypeA, qname) {
+		t.Fatal("test vectors no longer collide with crc32")
+	}
+	msg := []byte{
+		0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0,
+		7, 'e', 'x', 'a', 'm', 'p', 'l', 'e', 3, 'c', 'o', 'm', 0,
+		0, 1, 0, 1,
+	}
+	kA := cacheKey{collideCtxA, query.ClassINET, query.TypeA, qname}
+	kB := cacheKey{collideCtxB, query.ClassINET, query.TypeA, qname}
+	v := &cacheValue{ctx: collideCtxA, msg: msg}
+	if !kA.Matches(v) {
+		t.Fatal("entry must match its own key")
+	}
+	if kB.Matches(v) {
+		t.Fatal("entry stored for one context must not match a colliding key from another")
+	}
+}

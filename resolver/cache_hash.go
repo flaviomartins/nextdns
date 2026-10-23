@@ -19,8 +19,8 @@ const (
 	CacheHashXXHash CacheHash = iota
 	// CacheHashCRC32 uses CRC-32C (Castagnoli) from the standard library, which
 	// is hardware accelerated on many arm64 and amd64 CPUs. The resulting
-	// 32-bit value is zero-extended; collisions are harmless as cached entries
-	// are validated against the question on lookup.
+	// 32-bit value is zero-extended, so collisions are more likely than with
+	// xxhash; cache lookups therefore verify the full key (see cacheKey.Matches).
 	CacheHashCRC32
 )
 

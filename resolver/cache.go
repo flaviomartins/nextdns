@@ -24,6 +24,13 @@ func (k cacheKey) Hash() uint64 {
 	return k.hashWith(CacheHash(cacheHashAlgo.Load()))
 }
 
+// Matches reports whether a cached value was stored for this exact key. The
+// context (e.g. profile URL) is compared in full because the hash alone does
+// not identify it: a hash collision must never serve another context's answer.
+func (k cacheKey) Matches(v *cacheValue) bool {
+	return v.ctx == k.ctx && k.ValidateQuestion(v.msg)
+}
+
 func (k cacheKey) ValidateQuestion(msg []byte) bool {
 	var p dnsmessage.Parser
 	_, err := p.Start(msg)
@@ -41,6 +48,7 @@ func (k cacheKey) ValidateQuestion(msg []byte) bool {
 }
 
 type cacheValue struct {
+	ctx   string
 	time  time.Time
 	msg   []byte
 	trans string

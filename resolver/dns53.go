@@ -38,7 +38,7 @@ func (r DNS53) resolve(ctx context.Context, q query.Query, buf []byte, addr stri
 	if q.Type != query.TypePTR && r.Cache != nil {
 		now = time.Now()
 		k := cacheKey{"", q.Class, q.Type, q.Name}
-		if v, found := r.Cache.Get(k.Hash()); found && v != nil && k.ValidateQuestion(v.msg) {
+		if v, found := r.Cache.Get(k.Hash()); found && v != nil && k.Matches(v) {
 			var minTTL uint32
 			n, minTTL = v.AdjustedResponse(buf, q.ID, r.CacheMaxAge, r.MaxTTL, now)
 			i.FromCache = true

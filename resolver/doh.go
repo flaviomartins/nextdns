@@ -73,7 +73,7 @@ func (r *DOH) resolve(ctx context.Context, q query.Query, buf []byte, rt http.Ro
 	if q.Type != query.TypePTR && r.Cache != nil {
 		now = time.Now()
 		k := cacheKey{url, q.Class, q.Type, q.Name}
-		if v, found := r.Cache.Get(k.Hash()); found && v != nil && k.ValidateQuestion(v.msg) {
+		if v, found := r.Cache.Get(k.Hash()); found && v != nil && k.Matches(v) {
 			var minTTL uint32
 			n, minTTL = v.AdjustedResponse(buf, q.ID, r.CacheMaxAge, r.MaxTTL, now)
 			i.Transport = v.trans
@@ -128,6 +128,7 @@ func (r *DOH) resolve(ctx context.Context, q query.Query, buf []byte, rt http.Ro
 			now = time.Now()
 		}
 		v := &cacheValue{
+			ctx:   url,
 			time:  now,
 			msg:   make([]byte, n),
 			trans: res.Proto,

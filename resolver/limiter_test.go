@@ -92,7 +92,7 @@ func TestDOHFreshCacheBypassesBusyLimiter(t *testing.T) {
 
 	r := DOH{
 		URL:   "https://resolver.test/dns-query",
-		Cache: staticCache{value: &cacheValue{time: time.Now(), msg: response, trans: "test"}},
+		Cache: staticCache{value: &cacheValue{ctx: "https://resolver.test/dns-query", time: time.Now(), msg: response, trans: "test"}},
 	}
 	rt := roundTripperFunc(func(*http.Request) (*http.Response, error) {
 		t.Fatal("RoundTrip called for a fresh cache hit")
