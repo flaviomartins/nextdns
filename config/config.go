@@ -152,7 +152,7 @@ func (c *Config) flagSet(cmd string) flagSet {
 	fs.StringVar(&c.CacheHash, "cache-hash", "xxhash",
 		"Hash function used for cache keys: xxhash or crc32.\n"+
 			"\n"+
-			"crc32 (CRC-32C + CRC-32) may be faster on CPUs with hardware CRC instructions.\n"+
+			"crc32 (CRC-32C) may be faster on CPUs with hardware CRC instructions.\n"+
 			"Run \"nextdns benchmark\" on the target device to compare.")
 	fs.BoolVar(&c.CacheMetrics, "cache-metrics", false,
 		"Enable cache metrics collection for the control socket.\n"+

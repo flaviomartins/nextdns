@@ -17,12 +17,12 @@ type CacheHash uint32
 const (
 	// CacheHashXXHash uses 64-bit xxHash (default).
 	CacheHashXXHash CacheHash = iota
-	// CacheHashCRC32 combines CRC-32C (low 32 bits) and CRC-32 IEEE (high 32
-	// bits) from the standard library, which are hardware accelerated on many
-	// arm64 and amd64 CPUs. Both halves are needed: ristretto's doorkeeper
-	// Bloom filter reads the upper bits, and a zero-extended or same-polynomial
-	// pair raises its false-positive rate. The key is still only a 64-bit
-	// checksum, so cache lookups verify the full key (see cacheKey.Matches).
+	// CacheHashCRC32 uses CRC-32C (Castagnoli) from the standard library, which
+	// is hardware accelerated on many arm64 and amd64 CPUs. The resulting
+	// 32-bit value is zero-extended, so collisions are more likely than with
+	// xxhash; cache lookups therefore verify the full key (see cacheKey.Matches).
+	// The zero upper bits also raise the false-positive rate of ristretto's
+	// doorkeeper Bloom filter, which reads them.
 	CacheHashCRC32
 )
 
@@ -71,12 +71,10 @@ func (k cacheKey) hashWith(h CacheHash) uint64 {
 		// Seed with class and type, then chain ctx and qname. The strings are
 		// not copied: crc32.Update escapes its slice argument, so building a
 		// buffer would cost a heap allocation.
-		seed := uint32(k.qclass)<<16 | uint32(k.qtype)
-		ctx := unsafe.Slice(unsafe.StringData(k.ctx), len(k.ctx))
-		name := unsafe.Slice(unsafe.StringData(k.qname), len(k.qname))
-		lo := crc32.Update(crc32.Update(seed, crc32cTable, ctx), crc32cTable, name)
-		hi := crc32.Update(crc32.Update(seed, crc32.IEEETable, ctx), crc32.IEEETable, name)
-		return uint64(hi)<<32 | uint64(lo)
+		c := uint32(k.qclass)<<16 | uint32(k.qtype)
+		c = crc32.Update(c, crc32cTable, unsafe.Slice(unsafe.StringData(k.ctx), len(k.ctx)))
+		c = crc32.Update(c, crc32cTable, unsafe.Slice(unsafe.StringData(k.qname), len(k.qname)))
+		return uint64(c)
 	}
 	if n := len(k.ctx) + 4 + len(k.qname); n <= hashBufSize {
 		var buf [hashBufSize]byte
