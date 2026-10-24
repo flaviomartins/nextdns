@@ -4,9 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"time"
-	"unsafe"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/nextdns/nextdns/resolver/query"
 	"go.dw1.io/rapidhash"
 	"golang.org/x/net/dns/dnsmessage"
@@ -27,20 +25,20 @@ func (k cacheKey) Hash() uint64 {
 	if k.ctx == "" {
 		// DNS53 cache keys have no endpoint context; use the qname directly.
 		seed := uint64(k.qclass)<<16 | uint64(k.qtype)
-		return rapidhash.HashStringNanoWithSeed(k.qname, seed)
+		return rapidhash.HashStringMicroWithSeed(k.qname, seed)
 	}
 
-	d := xxhash.New()
-	// Avoid allocation from []byte(string).
-	_, _ = d.Write(unsafe.Slice(unsafe.StringData(k.ctx), len(k.ctx)))
+	var storage [512]byte
+	data := storage[:0]
+	data = append(data, k.ctx...)
 	var b [4]byte
 	binary.BigEndian.PutUint16(b[0:2], uint16(k.qclass))
 	binary.BigEndian.PutUint16(b[2:4], uint16(k.qtype))
-	_, _ = d.Write(b[:])
+	data = append(data, b[:]...)
 	if k.qname != "" {
-		_, _ = d.Write(unsafe.Slice(unsafe.StringData(k.qname), len(k.qname)))
+		data = append(data, k.qname...)
 	}
-	return d.Sum64()
+	return rapidhash.HashMicro(data)
 }
 
 func (k cacheKey) ValidateQuestion(msg []byte) bool {
