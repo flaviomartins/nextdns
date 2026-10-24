@@ -27,7 +27,10 @@ func (k cacheKey) Hash() uint64 {
 		seed := uint64(k.qclass)<<16 | uint64(k.qtype)
 		return rapidhash.HashStringMicroWithSeed(k.qname, seed)
 	}
+	return k.hashWithContext()
+}
 
+func (k cacheKey) hashWithContext() uint64 {
 	var storage [512]byte
 	data := storage[:0]
 	data = append(data, k.ctx...)
